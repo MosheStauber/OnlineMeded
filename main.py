@@ -36,17 +36,20 @@ def get_video_link(chrome_driver, url):
     player.click()
 
     try:
-        request = driver.wait_for_request(['videos-f.jwpsrv', 'jwpsrv-vh'], timeout=90)
+        request = driver.wait_for_request(['videos-f.jwpsrv', 'jwpsrv-vh'], timeout=30)
         return str(request)
     except Exception as e:
         print(e)
 
+    # Advertisement video "https://videos-e.jwpsrv.com/content/conversions/Pd1viDFY/videos/9cYJSeiC-30497135.mp4-2.ts"
+
+    input("Inspect")
     return None
 
 
 if __name__ == '__main__':
     print(f'{Fore.MAGENTA}Starting scrape{Fore.RESET}')
-    with open('video_list.json', 'r') as f:
+    with open('video_links.json', 'r') as f:
         video_list = json.load(f)
 
     options = webdriver.ChromeOptions()
@@ -54,17 +57,10 @@ if __name__ == '__main__':
     options.add_argument('--start-maximized')
     driver = webdriver.Chrome(options=options)
 
-    root_url = 'https://onlinemeded.org'
-    with open('video_links.txt', 'w') as f:
-        for video in video_list:
-            topic, name = video.split('/')[2:]
-            video_url = root_url + video
-            link = get_video_link(driver, video_url)
-            text = f'{video_url}: {link if link else "NOT FOUND"}'
-            print(text)
-            f.write(text+'\n')
-            f.flush()
-
+    for meded_url, video_link in video_list.items():
+        if video_link == 'NOT FOUND':
+            link = get_video_link(driver, meded_url)
+            print(meded_url, link)
     driver.close()
 
 
