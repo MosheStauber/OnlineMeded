@@ -1,66 +1,51 @@
-import time
 import json
 import youtube_dl
 import os
-
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as ec
-from seleniumwire import webdriver
-from colorama import Back, Fore
+from tempfile import TemporaryDirectory
+from multiprocessing import Pool
+import subprocess
 
 
-def download_video(url, name, download_dir):
-    if not os.path.exists(download_dir):
-        os.mkdir(download_dir)
+def download_video(url: str, video_path: str):
+    if url.startswith('https://videos-'):
+        url_format = url + '-{}.ts'
+    else:  # url.startswith('https://jwpsrv')
+        url_format = url[:url.find('index')] + 'segment{}_0_av.ts'
 
-    fname = os.path.join(download_dir, name)
-    ydl_opts = {
-        'outtmpl': f'{fname}.%(ext)s',
-        'format': 'mp4'
-    }
+    print(f'Working on {url_format}: {video_path}')
 
-    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    with TemporaryDirectory() as temp_dir:
+        video_list_file = os.path.join(temp_dir, 'flist.txt')
+        with open(video_list_file, 'w') as f:
+            part_number = 1
+            while True:
+                video_part = os.path.join(temp_dir, str(part_number))
+                ydl_opts = {'outtmpl': video_part}
+                try:
+                    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url_format.format(part_number)])
+                    f.write(f"file '{video_part}'\n")
+                    part_number += 1
+                except Exception as e:
+                    print(e)
+                    break
 
-    return f'{fname}.mp4'
-
-
-def get_video_link(chrome_driver, url):
-    chrome_driver.get(url)
-
-    del driver.requests
-
-    wait = WebDriverWait(driver, 30)
-    player = wait.until(ec.visibility_of_element_located((By.ID, "acquire_video_jwp")))
-    player.click()
-
-    try:
-        request = driver.wait_for_request(['videos-f.jwpsrv', 'jwpsrv-vh'], timeout=30)
-        return str(request)
-    except Exception as e:
-        print(e)
-
-    # Advertisement video "https://videos-e.jwpsrv.com/content/conversions/Pd1viDFY/videos/9cYJSeiC-30497135.mp4-2.ts"
-
-    input("Inspect")
-    return None
+        subprocess.call(["ffmpeg.exe", "-f", "concat", "-safe", "0", "-i", video_list_file, "-c:v", "copy", '-threads', '4', video_path])
 
 
 if __name__ == '__main__':
-    print(f'{Fore.MAGENTA}Starting scrape{Fore.RESET}')
     with open('video_links.json', 'r') as f:
         video_list = json.load(f)
 
-    options = webdriver.ChromeOptions()
-    options.add_argument("--user-data-dir=.\\local_chrome_sessions")
-    options.add_argument('--start-maximized')
-    driver = webdriver.Chrome(options=options)
+    root_video_dir = 'Videos'
 
-    for meded_url, video_link in video_list.items():
-        if video_link == 'NOT FOUND':
-            link = get_video_link(driver, meded_url)
-            print(meded_url, link)
-    driver.close()
+    pool_args = []
+    with Pool(3) as pool:
+        for meded_url, video_link in video_list.items():
+            category, video_name = meded_url.split('/')[-2:]
+            video_dir = os.path.join(root_video_dir, category)
+            os.makedirs(video_dir, exist_ok=True)
+            base_url = video_link.split('.m3u8')[0]
+            pool_args.append((base_url, os.path.join(video_dir, video_name + '.mp4')))
 
-
+        pool.starmap(download_video, pool_args)

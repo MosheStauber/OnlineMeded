@@ -9,6 +9,8 @@ verify_ssl = true
 youtube-dl = "*"
 selenium-wire = "*"
 colorama = "*"
+requests = "*"
+ffmpeg-python = "*"
 
 [requires]
 python_version = "3.7"
